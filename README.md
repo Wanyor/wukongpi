@@ -436,6 +436,10 @@ growrootfs: 分区表已扩展，重启一次以重新读取分区表
 > **当服务器用仍建议插网线** —— 有线是主线驱动，不依赖这些时序玄学，
 > 而且 XR819 本身丢帧严重（驱动作者原话：「The xr819 chip/firmware drops
 > tons and tons of frames with FCS errors」，实测 ping 丢包率约 30%）。
+>
+> **驱动默认被 blacklist**（`/etc/modprobe.d/blacklist-xradio.conf`），
+> 开机保持干净。执行一次 `sudo wifi "SSID" "密码"` 之后脚本会**自动解除黑名单**，
+> 从此开机自动加载驱动并自动连 WiFi。
 
 镜像里预装了 `wukongpi-wifi`（短别名 `wifi`），一条命令搞定：
 
@@ -445,7 +449,9 @@ sudo wukongpi-wifi "你的WiFi名字" "你的密码"
 
 ```
 [!] XR819 在主线没有驱动，只能用 out-of-tree 的 xradio 移植版。
-[!] 作者自己说它不成熟、可能把内核搞挂；实测也确实不稳（会崩掉并撤走 wlan0）。
+[!] 作者自己说它不成熟、可能把内核搞挂；实测丢包率也偏高（约 30%）。
+[!] 当服务器用建议插网线；WiFi 适合偶尔用一下。
+[!] （配置过一次之后会自动解除黑名单，之后开机自动加载并自动连）
 ==> wlan0 未出现，加载 xradio_wlan ...
 ==> 写入 /etc/wpa_supplicant/wpa_supplicant.conf
 ==> 连接 "MyWiFi" ...
