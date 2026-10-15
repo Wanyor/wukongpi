@@ -404,14 +404,30 @@ growrootfs: 分区表已扩展，重启一次以重新读取分区表
 
 ### WiFi
 
-> ⚠️ **先读这段**：XR819 在主线里没有驱动，必须用 out-of-tree 的
-> [xradio](https://github.com/fifteenhex/xradio)。**实测这个驱动会破坏内核内存**
-> ——先是 `clk_core_prepare` 拿到野指针（oops），几分钟后 SLUB 的 `obj_stock`
-> 被写坏，直接在中断里 kernel panic。
+> **实测结论（重要）**：SDIO 枚举、固件加载、射频扫描都能正常工作
+> （能扫到周边 AP，`Suneo -66dBm`），但**固件会在初始化后几秒内自己 assert 并自旋**，
+> 芯片不再响应 SDIO，驱动随之静默退出、`wlan0` 被撤走：
 >
-> 所以本固件**默认不自动加载** xradio 驱动（`/etc/modprobe.d/blacklist-xradio.conf`），
-> 开机保持干净。要用 WiFi 时执行 `sudo wifi` 显式加载。
-> **当服务器用请直接插网线**，有线是稳的。
+> ```
+> [1313.96] Firmware Label:XR_C01.08.52.58 Jul 19 2018 18:53:57   ← 固件加载成功
+> [1317.07] bh thread exiting                                      ← 3.1 秒后死掉
+> ```
+>
+> 这是芯片固件的问题（作者原话：「The firmware running on the xr819 is very
+> crash happy」），**改设备树或内核配置解决不了**。
+>
+> 而且驱动在「数据路径失败」这条路径上是**静默退出、不触发自恢复**的——
+> 源码里 `bh.c` 有三条会调度恢复的分支（读控制寄存器失败 / 固件异常 /
+> 缓冲区计数漂移），但数据读写出错那条只是 `break`，既不打印也不恢复。
+>
+> **所以：当服务器用请直接插网线。** 有线是主线 `dwmac-sun8i` 驱动，稳定可靠。
+> WiFi 只能算「能扫到、能连上，但随时可能掉」的 best-effort 功能。
+>
+> 掉线后重载模块可恢复（新版 `wifi` 脚本会自动做这一步）：
+>
+> ```bash
+> sudo modprobe -r xradio_wlan && sleep 2 && sudo modprobe xradio_wlan
+> ```
 
 镜像里预装了 `wukongpi-wifi`（短别名 `wifi`），一条命令搞定：
 
@@ -420,8 +436,8 @@ sudo wukongpi-wifi "你的WiFi名字" "你的密码"
 ```
 
 ```
-[!] XR819 的驱动是 out-of-tree 的，已知会破坏内核内存（可能 panic）。
-[!] 只在需要 WiFi 时加载；当服务器用建议插网线。
+[!] XR819 在主线没有驱动，只能用 out-of-tree 的 xradio 移植版。
+[!] 作者自己说它不成熟、可能把内核搞挂；实测也确实不稳（会崩掉并撤走 wlan0）。
 ==> wlan0 未出现，加载 xradio_wlan ...
 ==> 写入 /etc/wpa_supplicant/wpa_supplicant.conf
 ==> 连接 "MyWiFi" ...
@@ -519,7 +535,7 @@ H3 的 TVE 补丁提交过多次但一直没被合并。
 | **开机几分钟后随机崩溃，崩溃点在毫不相干的子系统（时钟/SLUB/内存管理/代码段），`Code:` 里出现 `ffffffff`** | **DDR 频率过高**导致随机内存损坏。把 `CONFIG_DRAM_CLK` 从 624 降到 **528**，详见下方踩坑记录 |
 | 开机掉进 emergency，日志有 `Timed out waiting for device dev-mmcblk0p1.device` | systemd 单元有**循环依赖**，它打破循环时会随机删掉某个任务（可能删到设备单元）。用 `systemd-analyze verify <unit>` 可直接复现，详见下方踩坑记录 |
 | `wlan0` 不出现 | 驱动默认被 blacklist（设计如此），先 `sudo modprobe xradio_wlan` 或直接 `sudo wifi`；再看 `dmesg \| grep -i xradio`、`/lib/firmware/xr819/`、SDIO 是否枚举（`mmc1`） |
-| **`clk_core_prepare` oops / SLUB `obj_stock` 崩 / kernel panic，`Modules linked in` 里有 `xradio_wlan(O)`** | XR819 驱动写坏内核内存。执行 `sudo sh -c 'echo "blacklist xradio_wlan" > /etc/modprobe.d/blacklist-xradio.conf'` 后重启即可，详见 WiFi 章节 |
+| **`wlan0` 突然消失，`dmesg` 里有 `xradio_wlan ... bh thread exiting`** | xradio 驱动内部崩了。重载模块：`sudo modprobe -r xradio_wlan && sleep 2 && sudo modprobe xradio_wlan`（新版 `wifi` 脚本会自动做这一步） |
 | `modprobe` 刷 `ignoring bad line starting with 'options'` | `/etc/modprobe.d/*.conf` 里有无效行（`options` 后面必须跟参数，只写模块名是错的） |
 | 编译报错找不到工具链 | 确认容器镜像构建成功：`make docker` |
 | `docker pull` 超时 / registry-1.docker.io 连不上 | Docker Hub 在国内经常抽风，多试几次；rootfs 步骤可改用 `make base` 走镜像站 |

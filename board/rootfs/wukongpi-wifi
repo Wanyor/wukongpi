@@ -51,13 +51,22 @@ fi
 ensure_iface() {
     ip link show "$IFACE" >/dev/null 2>&1 && return 0
 
-    c_warn "XR819 的驱动是 out-of-tree 的，已知会破坏内核内存（可能 panic）。"
-    c_warn "只在需要 WiFi 时加载；当服务器用建议插网线。"
-    c_info "$IFACE 未出现，加载 $DRIVER ..."
+    c_warn "XR819 在主线没有驱动，只能用 out-of-tree 的 xradio 移植版。"
+    c_warn "作者自己说它不成熟、可能把内核搞挂；实测也确实不稳（会崩掉并撤走 wlan0）。"
+
+    # 模块已经加载、但网卡不见了 → 多半是驱动内部崩过了，重载一次试试
+    if lsmod 2>/dev/null | grep -q "^${DRIVER}"; then
+        c_info "$DRIVER 已加载但 $IFACE 不存在（驱动内部可能已崩），重新加载"
+        modprobe -r "$DRIVER" 2>/dev/null || true
+        sleep 2
+    else
+        c_info "$IFACE 未出现，加载 $DRIVER ..."
+    fi
+
     modprobe "$DRIVER" 2>/dev/null || true
 
     local i
-    for i in $(seq 1 10); do
+    for i in $(seq 1 15); do
         sleep 1
         ip link show "$IFACE" >/dev/null 2>&1 && return 0
     done

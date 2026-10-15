@@ -92,13 +92,17 @@
 		states = <1100000 0>, <1300000 1>;
 	};
 
-	/* XR819 的复位时序 */
+	/* XR819 的复位时序。
+	 * 上电等待时间用 200ms（与上游 sun8i-h2-plus-orangepi-zero.dts 一致），
+	 * xradio README 里写的 50ms 偏短——实测 5 次重枚举里有 1 次
+	 * `mmc1: Failed to initialize a non-removable card`。
+	 */
 	wifi_pwrseq: pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_rst>;
 		reset-gpios = <&r_pio 0 7 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <50>;
+		post-power-on-delay-ms = <200>;
 	};
 };
 
