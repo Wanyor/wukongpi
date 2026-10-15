@@ -146,7 +146,10 @@ xz -dc out/xxx.img.xz | sudo dd of=/dev/rdiskN bs=4m
 | Linux | `/dev/ttyUSB0` | `picocom -b 115200 /dev/ttyUSB0` |
 | Windows | `COMx` | MobaXterm / PuTTY @115200 |
 
-登录：`root` / `root`，或 `orangepi` / `orangepi`（带 sudo 免密）。
+登录：`root` / `root`，或 `wukongpi` / `wukongpi`（带 sudo 免密）。
+
+> 默认凭据在 `configs/versions.env` 里可改：`ROOTFS_USER`、`ROOTFS_PASSWORD`、
+> `ROOTFS_ROOT_PASSWORD`、`ROOTFS_HOSTNAME`（改完 `make rootfs && make sd-image`）。
 
 ---
 
@@ -400,7 +403,7 @@ growrootfs: 分区表已扩展，重启一次以重新读取分区表
 
 ### 有线网络
 
-插上网线即 DHCP，`ssh orangepi@<板子IP>`（密码 `orangepi`）。
+插上网线即 DHCP，`ssh wukongpi@<板子IP>`（密码 `wukongpi`）。
 
 ### WiFi
 
@@ -496,7 +499,7 @@ rootfs 里已经打开了容器所需的内核选项，装一个 docker：
 
 ```bash
 sudo apt update && sudo apt install -y docker.io
-sudo usermod -aG docker orangepi
+sudo usermod -aG docker wukongpi
 ```
 
 ---

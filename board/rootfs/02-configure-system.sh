@@ -7,8 +7,8 @@
 set -euo pipefail
 
 : "${ROOTFS_HOSTNAME:=wukongpi}"
-: "${ROOTFS_USER:=orangepi}"
-: "${ROOTFS_PASSWORD:=orangepi}"
+: "${ROOTFS_USER:=wukongpi}"
+: "${ROOTFS_PASSWORD:=wukongpi}"
 : "${ROOTFS_ROOT_PASSWORD:=root}"
 : "${ROOTFS_TIMEZONE:=Asia/Shanghai}"
 : "${CONSOLE:=ttyS0}"
