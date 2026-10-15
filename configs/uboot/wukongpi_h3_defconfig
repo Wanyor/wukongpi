@@ -1,0 +1,73 @@
+# ============================================================================
+#  悟空派 H3 Zero — U-Boot 板级配置
+#
+#  基线：configs/orangepi_zero_defconfig (v2026.07)
+#  构建：make wukongpi_h3_defconfig
+# ============================================================================
+
+CONFIG_ARM=y
+CONFIG_ARCH_SUNXI=y
+CONFIG_DEFAULT_DEVICE_TREE="sun8i-h3-wukongpi-h3"
+
+# DDR3 运行频率。真正的容量 (256/512MB) 由 SPL 在运行时通过
+# mctl_auto_detect_dram_size() 自动探测，无需区分版本。
+#
+# ⚠️ 528 是实测值，不要照抄香橙派 Zero 的 624！
+# 624MHz 在这块板上会导致随机内存损坏（表现为四个不相干子系统随机崩溃：
+# clk_core_prepare 野指针 / SLUB obj_stock 被破坏 / vmalloc_to_page /
+# cap_vm_enough_memory 代码段被写成 0xffffffff），最终 kernel panic。
+# 降到 528 后连续运行 11 分钟零 oops。
+CONFIG_DRAM_CLK=528
+
+CONFIG_SPL=y
+CONFIG_MACH_SUN8I_H3=y
+
+# 板子没有 HDMI，不需要显示引擎
+# CONFIG_VIDEO_DE2 is not set
+
+# 板载 2MB SPI NOR：允许 U-Boot 自身放进 SPI Flash 启动
+CONFIG_SPL_SPI_SUNXI=y
+
+# SPL 阶段点亮绿色电源灯 (PL10)，启动失败时方便肉眼判断
+CONFIG_SPL_SUNXI_LED_STATUS=y
+CONFIG_SPL_SUNXI_LED_STATUS_GPIO=362
+
+# CONFIG_SYS_MALLOC_CLEAR_ON_INIT is not set
+CONFIG_CONSOLE_MUX=y
+
+# ---- 启动流程：distro boot，自动扫描 SD 卡上的 extlinux.conf ----
+CONFIG_BOOTDELAY=1
+CONFIG_USE_BOOTCOMMAND=y
+CONFIG_BOOTCOMMAND="run distro_bootcmd"
+
+# 内核镜像上限。默认只有 8MB，加了容器支持后 zImage 可能逼近这个值，
+# 提到 64MB 避免 "Image too large" 之类的问题。
+CONFIG_SYS_BOOTM_LEN=0x4000000
+
+# ---- 外设 ----
+CONFIG_SUN8I_EMAC=y
+CONFIG_SPI=y
+CONFIG_MTD=y
+CONFIG_USB_EHCI_HCD=y
+CONFIG_USB_OHCI_HCD=y
+CONFIG_USB_STORAGE=y
+CONFIG_CMD_USB=y
+
+# ---- SPI NOR 器件支持 (尽量覆盖常见 2MB 型号) ----
+CONFIG_SPI_FLASH_MACRONIX=y
+CONFIG_SPI_FLASH_WINBOND=y
+CONFIG_SPI_FLASH_GIGADEVICE=y
+CONFIG_SPI_FLASH_ISSI=y
+CONFIG_SPI_FLASH_SST=y
+CONFIG_SPI_FLASH_SPANSION=y
+CONFIG_SPI_FLASH_STMICRO=y
+CONFIG_SPI_FLASH_XMC=y
+CONFIG_CMD_SF=y
+
+# ---- 调试用命令 ----
+CONFIG_CMD_GPIO=y
+CONFIG_CMD_I2C=y
+CONFIG_CMD_PART=y
+
+# 裸机内存测试（在 U-Boot 提示符下 mtest），用来排查 DDR 稳定性
+CONFIG_CMD_MEMTEST=y

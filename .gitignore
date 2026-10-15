@@ -1,0 +1,9 @@
+# 构建产物
+/out/
+
+# 源码（由 make fetch 下载到 Docker 卷，一般不会出现在这里）
+/sources/
+
+# 系统
+.DS_Store
+*.swp
