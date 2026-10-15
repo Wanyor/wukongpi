@@ -143,7 +143,9 @@ do_connect() {
         ip="$(ip -4 -br addr show "$IFACE" 2>/dev/null | awk '{print $3}')"
         if [ -n "$ip" ]; then
             c_info "已联网：$IFACE  $ip"
-            if ping -c1 -W3 223.5.5.5 >/dev/null 2>&1; then
+            # XR819 丢帧严重（作者自述 "drops tons and tons of frames"），
+            # 单包 ping 经常失败，所以发 4 个，只要有一个回来就算通。
+            if ping -c 4 -W 3 223.5.5.5 2>/dev/null | grep -q "bytes from"; then
                 c_info "外网可达 ✓"
             else
                 c_warn "拿到 IP 但 ping 不通外网，检查路由/网关"

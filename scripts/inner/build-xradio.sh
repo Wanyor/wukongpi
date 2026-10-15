@@ -15,7 +15,36 @@ source /project/scripts/inner/env.sh
 KVER="$(cat "$OUT_DIR/kernel/kernel.release")"
 MODDIR="$OUT_DIR/kernel/modules/lib/modules/$KVER"
 
+# ---- 可选：WSM 消息追踪补丁 ----
+# 固件 assert 后 SDIO 就死了，异常上报（0x0800）读不出来，拿不到
+# file:line:code。这个补丁把驱动与固件之间每条 WSM 消息的
+# id / 序号 / 长度都打成 "XRDIAG:" 前缀的 dev_err，用于事后分析。
+#
+# 注意：它会**连接收数据帧（0x0804）也一起打**，跑起流量后会刷屏，
+# 所以默认关闭。要诊断时：XRADIO_DIAG=1 make xradio
+XRADIO_DIAG="${XRADIO_DIAG:-0}"
+DIAG_PATCH="$PROJECT_DIR/patches/xradio/0001-diag-wsm-trace.patch"
+if [ -f "$DIAG_PATCH" ]; then
+    if [ "$XRADIO_DIAG" = "1" ]; then
+        log "应用 WSM 追踪补丁"
+        if patch -d "$XRADIO_SRC" -p1 --forward --silent < "$DIAG_PATCH"; then
+            log "  ✓ 已应用（日志前缀 XRDIAG:）"
+        else
+            warn "  补丁已应用过，继续"
+        fi
+    else
+        # 撤销上一次可能残留的补丁，保证源码干净
+        if patch -d "$XRADIO_SRC" -p1 --reverse --silent < "$DIAG_PATCH" 2>/dev/null; then
+            log "已撤销 WSM 追踪补丁（干净构建）"
+        fi
+    fi
+fi
+
 step "编译 XR819 驱动 (内核 $KVER)"
+
+# 先清理：驱动是小模块，清理成本极低，但能保证「打了补丁再撤销」
+# 这类反复切换之后，产物一定是当前源码的确定结果，而不是增量残留。
+make -C "$LINUX_SRC" M="$XRADIO_SRC" clean >/dev/null 2>&1 || true
 
 # 驱动作者给出的标准 out-of-tree 构建方式
 make -C "$LINUX_SRC" M="$XRADIO_SRC" modules

@@ -93,16 +93,21 @@
 	};
 
 	/* XR819 的复位时序。
-	 * 上电等待时间用 200ms（与上游 sun8i-h2-plus-orangepi-zero.dts 一致），
-	 * xradio README 里写的 50ms 偏短——实测 5 次重枚举里有 1 次
-	 * `mmc1: Failed to initialize a non-removable card`。
+	 *
+	 * ⚠️ 上电等待时间必须给足。实测 50ms / 200ms 都不够：
+	 * 开机时约 1/5 概率出现
+	 *   mmc1: Failed to initialize a non-removable card
+	 * 而初始化「边际成功」时更糟——卡枚举了但通信不可靠，固件会收到
+	 * 被破坏的数据并 assert 卡死。用 unbind/bind 手动重新枚举（时序干净）
+	 * 之后，扫描 / 连接 / 上网全部正常，序号零错误。
+	 * 所以这里给到 1 秒，宁可开机慢一点。
 	 */
 	wifi_pwrseq: pwrseq {
 		compatible = "mmc-pwrseq-simple";
 		pinctrl-names = "default";
 		pinctrl-0 = <&wifi_rst>;
 		reset-gpios = <&r_pio 0 7 GPIO_ACTIVE_LOW>;
-		post-power-on-delay-ms = <200>;
+		post-power-on-delay-ms = <1000>;
 	};
 };
 

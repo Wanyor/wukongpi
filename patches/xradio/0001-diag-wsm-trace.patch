@@ -1,0 +1,39 @@
+--- a/bh.c	2026-09-03 11:39:26.000000000 +0000
++++ b/bh.c	2026-10-15 15:22:55.211881165 +0000
+@@ -239,6 +239,9 @@
+ 			wsm->id &= __cpu_to_le16(~WSM_TX_SEQ(WSM_TX_SEQ_MAX));
+ 			wsm->id |= __cpu_to_le16(WSM_TX_SEQ(hw_priv->wsm_tx_seq));
+ 
++			dev_err(hw_priv->pdev, "XRDIAG: REL id=0x%04x seq=%u len=%zu\n",
++				__le16_to_cpu(wsm->id) & 0xFFF, hw_priv->wsm_tx_seq, buf_len);
++
+ 			dev_dbg(hw_priv->pdev, "REL %d\n", hw_priv->wsm_tx_seq);
+ 			if (WARN_ON(xradio_data_write(hw_priv, buf->begin, buf_len))) {
+ 				break;
+@@ -516,6 +519,7 @@
+ 
+ 	/* Read data from device. */
+ 	if (xradio_data_read(hw_priv, data, alloc_len)) {
++	dev_err(hw_priv->pdev, "XRDIAG: data_read FAILED len=%zu\n", alloc_len);
+ 		ret = -EIO;
+ 		goto out;
+ 	}
+@@ -544,6 +548,8 @@
+ 	/* extract wsm id and seq. */
+ 	wsm_id = __le16_to_cpu(wsm->id) & 0xFFF;
+ 	wsm_seq = (__le16_to_cpu(wsm->id) >> 13) & 7;
++	dev_err(hw_priv->pdev, "XRDIAG: RX  id=0x%04x seq=%u len=%zu\n",
++		wsm_id, wsm_seq, wsm_len);
+ 	skb_trim(skb_rx, wsm_len);
+ 
+ 	/* process exceptions. */
+@@ -741,6 +747,9 @@
+ 			wsm->id &= __cpu_to_le16(~WSM_TX_SEQ(WSM_TX_SEQ_MAX));
+ 			wsm->id |= __cpu_to_le16(WSM_TX_SEQ(hw_priv->wsm_tx_seq));
+ 
++			dev_err(hw_priv->pdev, "XRDIAG: TX  id=0x%04x seq=%u len=%zu\n",
++				__le16_to_cpu(wsm->id) & 0xFFF, hw_priv->wsm_tx_seq, tx_len);
++
+ 			/* Send the data to devices. */
+ 			if (WARN_ON(xradio_data_write(hw_priv, data, tx_len))) {
+ 				wsm_release_tx_buffer(hw_priv, 1);
