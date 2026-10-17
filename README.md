@@ -573,6 +573,7 @@ H3 的 TVE 补丁提交过多次但一直没被合并。
 | 找不到内核 `/extlinux/extlinux.conf` | 第一个分区是不是 FAT32；文件名大小写；用 `make sd-image` 重新生成 |
 | 内核起来但 `VFS: Unable to mount root` | 第二个分区的 UUID/ext4；确认 `root=/dev/mmcblk0p2` |
 | **`mmc1: Failed to initialize a non-removable card`，`wlan0` 不出现** | **不要把 `&spi0` 改成 `disabled`**！关掉 spi0 会让 PC0-PC3 退出引脚复用、进而破坏 XR819 的 SDIO 初始化。保持 `status = "okay"`，详见下方踩坑记录 |
+| **`ssh` 报 `REMOTE HOST IDENTIFICATION HAS CHANGED`** | **正常现象**，不是攻击：镜像故意不在构建时生成 host key（否则所有板子共用同一套密钥），每台设备首次开机自己生成，所以重刷一次换一次。删掉旧记录即可：`ssh-keygen -R <板子IP>`。想严格核对就在板子上跑 `ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub` 比对指纹 |
 | **`Failed to start ssh.service`，`systemctl status ssh` 说没有 host key** | host key 的生成步骤排在了 `sshd -t` 自检之后。执行 `sudo ssh-keygen -A && sudo systemctl restart ssh` 立即修复，详见下方踩坑记录 |
 | **开机几分钟后随机崩溃，崩溃点在毫不相干的子系统（时钟/SLUB/内存管理/代码段），`Code:` 里出现 `ffffffff`** | **DDR 频率过高**导致随机内存损坏。把 `CONFIG_DRAM_CLK` 从 624 降到 **528**，详见下方踩坑记录 |
 | 开机掉进 emergency，日志有 `Timed out waiting for device dev-mmcblk0p1.device` | systemd 单元有**循环依赖**，它打破循环时会随机删掉某个任务（可能删到设备单元）。用 `systemd-analyze verify <unit>` 可直接复现，详见下方踩坑记录 |
