@@ -120,7 +120,11 @@ log "打包 rootfs（排除挂载点与临时目录）"
 docker exec "$CID2" sh -c '
     set -e
     mkdir -p /build/out/rootfs
+    # --xattrs 必须显式写出，否则扩展属性会被静默丢掉。
+    # Debian 的 ping / arping 等正是靠 security.capability 扩展属性
+    # 给普通用户原始套接字权限的，丢了之后非 root 用户 ping 就会失败。
     tar -C / \
+        --xattrs --xattrs-include="*" \
         --exclude=./build \
         --exclude=./project \
         --exclude=./proc \
@@ -136,6 +140,12 @@ docker run --rm -v "${BUILD_VOLUME}:/build" "$BUILD_IMAGE" sh -c '
     tar -tf /build/out/rootfs/rootfs.tar | head -5
     echo "..."
     du -sh /build/out/rootfs/rootfs.tar
+    # 回归防线：扩展属性一旦丢失，非 root 用户就没法 ping。
+    # rootfs 里没有任何地方设置 ping_group_range（内核默认 "1 0"，谁都不许用
+    # 无特权 ICMP 套接字），所以普通用户完全依赖 security.capability。
+    n=$(grep -a -o "SCHILY.xattr.security.capability" /build/out/rootfs/rootfs.tar | wc -l)
+    echo "扩展属性 security.capability 记录数: $n"
+    [ "$n" -gt 0 ] || echo "[x] 扩展属性丢失 —— 非 root 用户 ping 会失败"
 '
 
 log "rootfs 制作完成 -> /build/out/rootfs/rootfs.tar"

@@ -111,6 +111,15 @@ CONFIG_NLS_UTF8=y
 # ---------------------------------------------------------------------------
 CONFIG_NET_SCH_FQ_CODEL=y
 
+# IPv6 —— 上游 sunxi_defconfig 第 27 行明确把它关了，这里必须打开。
+# 原因：iputils 的 ping 是双栈实现，启动时会无条件创建 IPv6 套接字。
+# 内核没有 IPv6 时 socket(AF_INET6, ...) 返回 EAFNOSUPPORT，
+# 于是连 "ping 1.1.1.1" 这种纯 IPv4 目标都会在启动阶段直接失败，报：
+#   ping: socktype: SOCK_DGRAM
+#   ping: socket: Address family not supported by protocol
+# 另外上面那组 CONFIG_IP6_NF_* 也只有在 IPv6 打开之后才不是空操作。
+CONFIG_IPV6=y
+
 # ---------------------------------------------------------------------------
 #  硬件相关
 # ---------------------------------------------------------------------------

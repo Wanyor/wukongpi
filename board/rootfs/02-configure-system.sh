@@ -68,6 +68,50 @@ enable_unit "serial-getty@${CONSOLE}.service" getty.target
 update-rc.d networking defaults 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
+log "locale（否则 SSH 登录会报 setlocale 警告）"
+# ---------------------------------------------------------------------------
+# SSH 客户端会通过 AcceptEnv 把 LANG/LC_* 传过来（macOS 上通常是
+# en_US.UTF-8），而镜像默认只带 C.UTF-8，于是每次登录 bash 都警告：
+#   setlocale: LC_ALL: cannot change locale (en_US.UTF-8)
+# locales 包在非交互模式下不会自动生成任何 locale，必须显式跑 locale-gen。
+# en_US 和 zh_CN 都生成：UTF-8 下显示中文都不成问题，区别只在系统消息语言。
+sed -i -e 's/^# *\(en_US\.UTF-8 UTF-8\)/\1/' \
+       -e 's/^# *\(zh_CN\.UTF-8 UTF-8\)/\1/' /etc/locale.gen
+locale-gen
+cat > /etc/default/locale <<EOF
+LANG=${ROOTFS_LOCALE:-en_US.UTF-8}
+EOF
+
+# ---------------------------------------------------------------------------
+log "串口控制台的 tty 尺寸"
+# ---------------------------------------------------------------------------
+# 串口没有远端 pty，host 端终端的宽高传不过来，板子的 tty 一直是默认的
+# 80x24 —— 长命令和长输出会折行错乱。这里给串口会话设一个固定的较大尺寸：
+# 普通输出由本地终端自行折行，视觉上是正常的。
+# ⚠️ 必须用 tty 名判断，只对串口生效 —— SSH 会话有正确的尺寸，覆盖它会坏事。
+# 全屏程序（vim / htop）在串口下仍然会错位，那类操作请用 SSH。
+SERIAL_SIZE="${ROOTFS_SERIAL_SIZE:-60 200}"
+# 必须是「行 列」两个数字。stty 的错误被 2>/dev/null 吞掉了，格式写错会
+# 静默失效（曾经写成 stty rows 60 200，整段配置其实一直没生效），所以在这里拦住。
+if ! printf '%s' "$SERIAL_SIZE" | grep -qE '^[0-9]+ +[0-9]+$'; then
+    echo "[x] ROOTFS_SERIAL_SIZE 格式错误: '${SERIAL_SIZE}'（应为 \"行 列\"，例如 \"60 200\"）" >&2
+    exit 1
+fi
+SERIAL_ROWS="${SERIAL_SIZE%% *}"
+SERIAL_COLS="${SERIAL_SIZE##* }"
+cat > /etc/profile.d/00-tty-size.sh <<EOF
+# 只对串口控制台生效（SSH 有正确的窗口尺寸，不要覆盖）
+if [ -t 1 ]; then
+    case "\$(tty 2>/dev/null)" in
+        /dev/ttyS*|/dev/ttyAMA*|/dev/ttyO*|/dev/ttymxc*)
+            stty rows ${SERIAL_ROWS} cols ${SERIAL_COLS} 2>/dev/null || true
+            ;;
+    esac
+fi
+EOF
+chmod 0644 /etc/profile.d/00-tty-size.sh
+
+# ---------------------------------------------------------------------------
 log "用户与密码"
 # ---------------------------------------------------------------------------
 echo "root:${ROOTFS_ROOT_PASSWORD}" | chpasswd

@@ -22,9 +22,9 @@ make -C "$LINUX_SRC" sunxi_defconfig
 make -C "$LINUX_SRC" olddefconfig >/dev/null
 
 # 关键项校验，避免 WiFi / 容器支持静默丢失
-for sym in CONFIG_CFG80211 CONFIG_MAC80211 CONFIG_OVERLAY_FS CONFIG_MEMCG CONFIG_BRIDGE; do
+for sym in CONFIG_CFG80211 CONFIG_MAC80211 CONFIG_OVERLAY_FS CONFIG_MEMCG CONFIG_BRIDGE CONFIG_IPV6; do
     grep -q "^${sym}=[ym]" "$LINUX_SRC/.config" \
-        || warn "$sym 未启用（xradio WiFi / 容器功能可能不可用）"
+        || warn "$sym 未启用（xradio WiFi / 容器 / ping 可能不可用）"
 done
 grep -q '^CONFIG_MODULES=y' "$LINUX_SRC/.config" || die "内核模块支持被关闭，无法编译 xradio"
 

@@ -84,7 +84,9 @@ mdir -i "$BOOT_IMG" ::/ ::/extlinux 2>/dev/null | sed 's/^/    /'
 
 # ---------------------------------------------------------------- 2. 根文件系统
 step "准备 rootfs 分区（解压 + 安装内核模块）"
-tar -xpf "$ROOTFS_TAR" -C "$ROOT_STAGE"
+# --xattrs 与打包侧对应，用来恢复 security.capability 这类扩展属性
+# （mke2fs -d 会把它写进 ext4，所以只要 tar 这一环不丢就能保留到镜像里）
+tar -xpf "$ROOTFS_TAR" -C "$ROOT_STAGE" --xattrs --xattrs-include='*'
 
 rm -f "$ROOT_STAGE/.dockerenv"
 mkdir -p "$ROOT_STAGE"/{dev,proc,sys,tmp,run,mnt,media,srv,boot}

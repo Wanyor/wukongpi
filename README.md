@@ -140,7 +140,7 @@ xz -dc out/xxx.img.xz | sudo dd of=/dev/rdiskN bs=4m
 板子的 **Type-C 口自带 USB 转串口芯片**。用一根 Type-C 线插到电脑上，
 除了供电还会出现一个串口设备。
 
-**推荐用 `make serial`**（自动探测设备、自动同步窗口尺寸）：
+**推荐用 `make serial`**（自动探测设备、记住选择）：
 
 ```bash
 make serial-list     # 列出可用串口设备
@@ -148,12 +148,24 @@ make serial          # 连接（多个设备时首次会让你选一次，之后
 make serial 1500000  # 指定波特率
 ```
 
-它用的是 [`tio`](https://github.com/tio/tio) 而不是 `screen`。**串口没有远端
-pty，`screen` 无法把终端宽高传过去**，板子的 shell 会一直以为是 80×24，
-长命令和输出折行错乱。`tio` 在连接时和窗口变化时都会发送尺寸。
+窗口尺寸**在板子侧解决，不依赖客户端**：rootfs 里的
+`/etc/profile.d/00-tty-size.sh` 会给串口会话（`/dev/ttyS*`）固定一个较大的
+尺寸（默认 60 行 × 200 列），所以 `screen` / `tio` / `minicom` / PuTTY
+都不会再出现 80×24 折行错乱。
+
+> 为什么必须这么做：串口**没有远端 pty**，host 端终端的宽高根本传不到板子上，
+> 板子的 shell 只能一直以为自己 80×24。在板子侧固定尺寸是唯一与客户端无关的解法。
+> 该脚本只对串口 tty 生效，SSH 会话有正确的尺寸，不会被覆盖。
+> 要改尺寸：改 `configs/versions.env` 里的 `ROOTFS_SERIAL_SIZE`（格式 `"行 列"`），
+> 然后 `make rootfs && make sd-image`。
+>
+> 注意全屏程序（`vim` / `htop`）在串口下仍可能错位 —— 那类操作请用 SSH。
+
+`make serial` 优先用 [`tio`](https://github.com/tio/tio)（断线重连、会话日志），
+没装就退回 `screen`，两者都可用：
 
 ```bash
-brew install tio     # 没装的话 make serial 会提示
+brew install tio     # 可选，不装也不影响窗口尺寸
 ```
 
 也可以手工连：
@@ -164,8 +176,7 @@ brew install tio     # 没装的话 make serial 会提示
 | Linux | `/dev/ttyUSB0` | `picocom -b 115200 /dev/ttyUSB0` |
 | Windows | `COMx` | MobaXterm / PuTTY @115200 |
 
-> 坚持用 `screen` 的话，每次调整窗口后要在板子上执行 `stty rows 50 cols 180`
-> 手动设置尺寸。
+> macOS 上要用 `/dev/cu.*` 而不是 `/dev/tty.*`：后者会阻塞等待 DCD 信号。
 
 登录：`root` / `root`，或 `wukongpi` / `wukongpi`（带 sudo 免密）。
 
@@ -579,6 +590,8 @@ H3 的 TVE 补丁提交过多次但一直没被合并。
 | 开机掉进 emergency，日志有 `Timed out waiting for device dev-mmcblk0p1.device` | systemd 单元有**循环依赖**，它打破循环时会随机删掉某个任务（可能删到设备单元）。用 `systemd-analyze verify <unit>` 可直接复现，详见下方踩坑记录 |
 | `wlan0` 不出现 | 驱动默认被 blacklist（设计如此），先 `sudo modprobe xradio_wlan` 或直接 `sudo wifi`；再看 `dmesg \| grep -i xradio`、`/lib/firmware/xr819/`、SDIO 是否枚举（`mmc1`） |
 | **`wlan0` 突然消失，`dmesg` 里有 `xradio_wlan ... bh thread exiting`** | xradio 驱动内部崩了。重载模块：`sudo modprobe -r xradio_wlan && sleep 2 && sudo modprobe xradio_wlan`（新版 `wifi` 脚本会自动做这一步） |
+| **普通用户 `ping` 报 `ping: socket: Address family not supported by protocol`，连 `ping 1.1.1.1` 也一样** | 内核没开 IPv6。iputils 的 `ping` 是双栈的，启动时会无条件创建 IPv6 套接字，失败就直接退出，所以纯 IPv4 目标也一起挂。判别实验：`ping -4 1.1.1.1` 通、`ping 1.1.1.1` 不通就是它。详见下方踩坑记录 |
+| **普通用户 `ping` 报 `Operation not permitted`** | 镜像里 `ping` 的 `security.capability` 丢了（打包时 `tar` 少了 `--xattrs`），而系统又没有设置 `ping_group_range`，普通用户拿不到原始套接字。`getcap /usr/bin/ping` 输出为空即可确认。临时修复：`sudo setcap cap_net_raw+ep /usr/bin/ping`。详见下方踩坑记录 |
 | `modprobe` 刷 `ignoring bad line starting with 'options'` | `/etc/modprobe.d/*.conf` 里有无效行（`options` 后面必须跟参数，只写模块名是错的） |
 | 编译报错找不到工具链 | 确认容器镜像构建成功：`make docker` |
 | `docker pull` 超时 / registry-1.docker.io 连不上 | Docker Hub 在国内经常抽风，多试几次；rootfs 步骤可改用 `make base` 走镜像站 |
@@ -772,6 +785,90 @@ systemd-analyze verify growrootfs.service
 
 **教训**：`WantedBy=X` 和 `Before=X` 不能同时用——前者表示「X 拉起我」，
 后者表示「我在 X 之前完成」，对 target 而言这就是一个环。
+
+### 踩坑记录：普通用户 ping 不通，是两个独立缺陷叠在一起
+
+现象（用普通用户，不是 root）：
+
+```console
+$ ping wanyor.com
+ping: socktype: SOCK_DGRAM
+ping: socket: Address family not supported by protocol
+$ ping 1.1.1.1        # 纯 IPv4 字面量，照样失败
+ping: socktype: SOCK_DGRAM
+ping: socket: Address family not supported by protocol
+```
+
+`Address family not supported` 就是 `EAFNOSUPPORT`，来自 `socket()`。这个错误码
+**只有「地址族/协议组合根本没注册」才会返回**，权限不足是 `EPERM`/`EACCES`。
+所以第一步就能把「capability 丢了」这个猜测排除掉（它确实也丢了，但那是第二个缺陷）。
+
+#### 缺陷一：内核没有 IPv6
+
+`net/ipv4/af_inet.c` 里 IPv4 的 ping 套接字是无条件注册的（`proto_register(&ping_prot, 1)`），
+所以 AF_INET 不可能报 EAFNOSUPPORT。真正的来源是 AF_INET6：
+
+**iputils 的 `ping` 是双栈实现，启动时会同时创建 IPv4 和 IPv6 两个套接字。**
+二进制里的字符串就是证据：
+
+```
+socktype: %s
+sock4.fd: %d (socktype: %s), sock6.fd: %d (socktype: %s), hints.ai_family: %s
+```
+
+IPv6 那个创建失败就直接退出，**于是连 IPv4 目标也一起挂** —— 这正是「`ping 1.1.1.1` 也报
+Address family」的原因，也是当初最容易被误导的地方。
+
+根因：配置基线 `arch/arm/configs/sunxi_defconfig` 第 27 行就是
+`# CONFIG_IPV6 is not set`，我们原样继承了。修法是在 fragment 里显式打开：
+
+```
+CONFIG_IPV6=y
+```
+
+顺带一个隐性后果：fragment 里那组 `CONFIG_IP6_NF_*` 在 IPv6 关闭时**全是空操作**，
+`merge_config.sh` 既不报错也不警告，只会静默丢弃 —— 光看 fragment 会以为 IPv6 防火墙是配好的。
+
+**判别实验**：`ping -4 1.1.1.1` 能通、`ping 1.1.1.1` 不通 → 就是它。
+
+#### 缺陷二：`security.capability` 被 tar 静默丢掉
+
+打开 IPv6 之后非 root 用户还是 ping 不通，因为：
+
+- rootfs 里**没有任何地方设置 `net.ipv4.ping_group_range`**，内核默认值是 `1 0`
+  （内核注释写得很直白：*nobody may create ping sockets*），
+  所以无特权 ICMP 套接字（SOCK_DGRAM）对普通用户返回 `EACCES`；
+- Debian 让普通用户能 ping 靠的是 `ping` 的**文件 capability** `cap_net_raw+ep`；
+- capability 存在**扩展属性**里，而打包流程把它丢了。
+
+各环节实测结果（都是跑出来的，不是推断）：
+
+| 环节 | 是否保留 `security.capability` |
+|---|---|
+| apt 装出来的 `/usr/bin/ping` | ✅ `getcap` 显示 `cap_net_raw=ep` |
+| `tar -cpf`（不带 `--xattrs`） | ❌ 解出来 xattr 为空 |
+| `tar --xattrs --xattrs-include='*'` | ✅ 往返后仍在 |
+| `mke2fs -d` | ✅ 会写进 ext4 |
+
+所以**只需要修 tar 这一环**，打包和解包两侧都要加：
+
+```bash
+tar -C / --xattrs --xattrs-include='*' ... -cpf rootfs.tar .
+tar -xpf rootfs.tar -C "$ROOT_STAGE" --xattrs --xattrs-include='*'
+```
+
+`build-rootfs.sh` 的产物校验里加了防线：打包后直接数 `rootfs.tar` 里
+`SCHILY.xattr.security.capability` 的出现次数，为 0 就报警。
+
+#### 教训
+
+- `socket()` 报 `EAFNOSUPPORT` 就先去查「地址族/协议有没有注册」，别往权限上猜（那是 `EPERM`）。
+- **双栈程序会把单栈内核的缺失放大**：一个 IPv6 没开，能让纯 IPv4 的命令也一起失败，
+  排查时很容易被「IPv4 怎么会报 Address family」带偏。
+- 用 `tar` 打包 rootfs 时 `--xattrs` **不是可选项**：文件 capability 就存在扩展属性里，
+  丢了不会有任何报错。
+- 验证「镜像里到底有没有某个扩展属性」，不必解包，`debugfs` 可以直接读：
+  `debugfs -R "ea_list /usr/bin/ping" rootfs.ext4`
 
 ---
 

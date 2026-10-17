@@ -6,9 +6,10 @@
 #   ./scripts/host/serial.sh 1500000      # 指定波特率
 #   ./scripts/host/serial.sh -l           # 列出可用串口设备
 #
-# 用 tio 而不是 screen：串口没有远端 pty，screen 无法把终端宽高传过去，
-# 板子的 shell 会一直以为是 80x24、长命令折行错乱。tio 会在连接时和
-# 窗口变化时都发送尺寸，还会断线重连、可选日志。
+# 窗口尺寸：板子侧已经在 /etc/profile.d/00-tty-size.sh 里把串口 tty 固定成
+# 一个较大的尺寸，所以任何客户端（screen / tio / minicom）都不会再出现
+# 80x24 折行错乱 —— 不依赖客户端。tio 只是锦上添花：它还会断线重连、
+# 支持日志，装了就用，没装退回 screen 也完全可用。
 #
 set -euo pipefail
 
@@ -96,8 +97,10 @@ if command -v tio >/dev/null 2>&1; then
     exec tio "$DEV" -b "$BAUD" --databits 8 --parity n --stopbits 1 "$@"
 else
     cat <<EOF >&2
-[!] 没装 tio，退回 screen。
-    串口下 screen 无法同步终端宽高，板子会以为自己是 80x24 —— 想解决就：
+[!] 没装 tio，退回 screen（功能上没问题）。
+    窗口尺寸由板子侧的 /etc/profile.d/00-tty-size.sh 固定，不依赖客户端，
+    所以 screen 下也不会出现 80x24 折行错乱。
+    想要断线重连 / 会话日志可以装 tio：
         brew install tio
 
 EOF
