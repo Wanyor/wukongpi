@@ -138,18 +138,43 @@ xz -dc out/xxx.img.xz | sudo dd of=/dev/rdiskN bs=4m
 ### 2.4 上电看串口
 
 板子的 **Type-C 口自带 USB 转串口芯片**。用一根 Type-C 线插到电脑上，
-除了供电还会出现一个串口设备：
+除了供电还会出现一个串口设备。
+
+**推荐用 `make serial`**（自动探测设备、自动同步窗口尺寸）：
+
+```bash
+make serial-list     # 列出可用串口设备
+make serial          # 连接（多个设备时首次会让你选一次，之后记住）
+make serial 1500000  # 指定波特率
+```
+
+它用的是 [`tio`](https://github.com/tio/tio) 而不是 `screen`。**串口没有远端
+pty，`screen` 无法把终端宽高传过去**，板子的 shell 会一直以为是 80×24，
+长命令和输出折行错乱。`tio` 在连接时和窗口变化时都会发送尺寸。
+
+```bash
+brew install tio     # 没装的话 make serial 会提示
+```
+
+也可以手工连：
 
 | 系统 | 设备名 | 连接命令 |
 |---|---|---|
-| macOS | `/dev/tty.usbserial-*` | `screen /dev/tty.usbserial-xxx 115200` |
+| macOS | `/dev/cu.usbserial-*` | `tio /dev/cu.usbserial-xxx -b 115200` |
 | Linux | `/dev/ttyUSB0` | `picocom -b 115200 /dev/ttyUSB0` |
 | Windows | `COMx` | MobaXterm / PuTTY @115200 |
+
+> 坚持用 `screen` 的话，每次调整窗口后要在板子上执行 `stty rows 50 cols 180`
+> 手动设置尺寸。
 
 登录：`root` / `root`，或 `wukongpi` / `wukongpi`（带 sudo 免密）。
 
 > 默认凭据在 `configs/versions.env` 里可改：`ROOTFS_USER`、`ROOTFS_PASSWORD`、
 > `ROOTFS_ROOT_PASSWORD`、`ROOTFS_HOSTNAME`（改完 `make rootfs && make sd-image`）。
+
+> **日常建议用 SSH 而不是串口** —— 网络通了之后 `ssh wukongpi@<板子IP>` 能自动
+> 同步窗口尺寸、能滚动复制、不用重连。串口留给「网络还没起来 / 系统起不来」的
+> 救砖场景。
 
 ---
 

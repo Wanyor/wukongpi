@@ -33,6 +33,14 @@ CID2="wukongpi-rootfs2-$$"
 log() { printf '\n\033[1;32m==>\033[0m %s\n' "$*"; }
 die() { printf '\n\033[1;31m[x]\033[0m %s\n' "$*" >&2; exit 1; }
 
+# 只实现了 Debian。明确拒绝其它取值，而不是静默跑出一个坏 rootfs。
+case "${ROOTFS_DISTRO:-debian}" in
+    debian) ;;
+    *) die "ROOTFS_DISTRO=${ROOTFS_DISTRO} 暂不支持。
+本项目目前只实现 Debian armhf（ROOTFS_RELEASE 可选 bookworm / trixie / bullseye）。
+换发行版需要改 apt 源格式、包名和部分系统配置，不是改一个变量就行。" ;;
+esac
+
 cleanup() {
     local rc=$?
     docker rm -f "$CID1" >/dev/null 2>&1 || true

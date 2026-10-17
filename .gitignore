@@ -7,3 +7,6 @@
 # 系统
 .DS_Store
 *.swp
+
+# 串口设备记忆（本机相关）
+/out/.serial-device

@@ -24,7 +24,7 @@ DOCKER_RUN  := ./scripts/host/run.sh
 
 .DEFAULT_GOAL := help
 .PHONY: help all image docker base fetch uboot kernel xradio rootfs sd-image patches \
-        shell out flash check clean distclean
+        shell out flash serial serial-list check clean distclean
 
 help: ## 显示帮助
 	@printf '\n\033[1;36m悟空派 H3 Zero 主线移植构建系统\033[0m\n\n'
@@ -68,6 +68,12 @@ patches: uboot kernel ## 生成可提交给上游的 git 补丁（写入 ./patch
 
 flash: ## 把 out/ 里最新的镜像烧到 TF 卡（macOS）
 	./scripts/host/flash-sd.sh
+
+serial: ## 连板子的串口控制台（自动探测设备，用 tio 同步窗口尺寸）
+	./scripts/host/serial.sh
+
+serial-list: ## 列出可用的串口设备
+	./scripts/host/serial.sh -l
 
 out: ## 把构建卷里的产物全部同步到 ./out
 	mkdir -p out
