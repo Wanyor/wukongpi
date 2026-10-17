@@ -182,6 +182,11 @@ brew install tio     # 可选，不装也不影响窗口尺寸
 
 > 默认凭据在 `configs/versions.env` 里可改：`ROOTFS_USER`、`ROOTFS_PASSWORD`、
 > `ROOTFS_ROOT_PASSWORD`、`ROOTFS_HOSTNAME`（改完 `make rootfs && make sd-image`）。
+>
+> 语言与中文显示：镜像会生成 `en_US.UTF-8` 和 `zh_CN.UTF-8` 两套 locale，
+> 默认 `LANG=en_US.UTF-8`（UTF-8 下中文显示本来就正常，区别只在系统消息的语言）。
+> 想要中文的 apt / systemd 提示就把 `ROOTFS_LOCALE` 改成 `zh_CN.UTF-8`；
+> 时区用 `ROOTFS_TIMEZONE`（默认 `Asia/Shanghai`）。
 
 > **日常建议用 SSH 而不是串口** —— 网络通了之后 `ssh wukongpi@<板子IP>` 能自动
 > 同步窗口尺寸、能滚动复制、不用重连。串口留给「网络还没起来 / 系统起不来」的
