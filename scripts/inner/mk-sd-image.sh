@@ -145,6 +145,12 @@ IMAGE_DIRTY=${GIT_DIRTY}
 IMAGE_BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 EOF
 
+# 许可证随系统一起分发（二进制分发时应当带上）
+if [ -f "$PROJECT_DIR/LICENSE" ]; then
+    mkdir -p "$ROOT_STAGE/usr/share/doc/wukongpi"
+    cp "$PROJECT_DIR/LICENSE" "$ROOT_STAGE/usr/share/doc/wukongpi/LICENSE"
+fi
+
 truncate -s $(( ROOT_SIZE_MB * 1024 * 1024 )) "$ROOT_IMG"
 step "生成 ext4 文件系统（${ROOT_SIZE_MB}MB）"
 mke2fs -q -t ext4 -F -L rootfs -m 1 -d "$ROOT_STAGE" "$ROOT_IMG"
