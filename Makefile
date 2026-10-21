@@ -24,7 +24,7 @@ DOCKER_RUN  := ./scripts/host/run.sh
 
 .DEFAULT_GOAL := help
 .PHONY: help all image docker base fetch uboot kernel xradio rootfs sd-image patches \
-        shell out flash serial serial-list check clean distclean
+        verify-image shell out flash serial serial-list check clean distclean
 
 help: ## 显示帮助
 	@printf '\n\033[1;36m悟空派 H3 Zero 主线移植构建系统\033[0m\n\n'
@@ -62,6 +62,9 @@ rootfs: ## 制作 Debian armhf 根文件系统（qemu 模拟，较慢）
 
 sd-image: uboot kernel xradio rootfs ## 组装可烧录的 TF 卡镜像
 	$(DOCKER_RUN) /project/scripts/inner/mk-sd-image.sh
+
+verify-image: ## 检查 out/ 最新镜像是否包含当前 HEAD 的全部提交
+	./scripts/host/verify-image.sh
 
 patches: uboot kernel ## 生成可提交给上游的 git 补丁（写入 ./patches）
 	$(DOCKER_RUN) /project/scripts/inner/gen-patches.sh

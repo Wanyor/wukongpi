@@ -24,7 +24,27 @@ done
 
 KVER="$(cat "$OUT_DIR/kernel/kernel.release")"
 DATE="$(date +%Y%m%d)"
-IMG="$OUT_DIR/${BOARD_NAME}-${KVER}-${DATE}.img"
+
+# 构建溯源：把提交号同时写进「镜像文件名」和「镜像内的 /etc/wukongpi-release」。
+# 这样判断「这个镜像里是哪一版代码」不需要解包、不需要 Docker，也不依赖
+# mtime（git rebase 会把所有文件的 mtime 刷成构建之后，用新旧比较会误判）。
+# 工作区不干净时标 -dirty —— 脏工作区不对应任何提交，必须显式暴露出来。
+GIT_COMMIT="unknown"; GIT_SHORT="unknown"; GIT_DIRTY="unknown"
+if command -v git >/dev/null 2>&1 && \
+   git -C "$PROJECT_DIR" rev-parse --git-dir >/dev/null 2>&1; then
+    GIT_COMMIT="$(git -C "$PROJECT_DIR" rev-parse HEAD)"
+    GIT_SHORT="$(git -C "$PROJECT_DIR" rev-parse --short HEAD)"
+    if [ -n "$(git -C "$PROJECT_DIR" status --porcelain 2>/dev/null)" ]; then
+        GIT_DIRTY="yes"
+        GIT_SHORT="${GIT_SHORT}-dirty"
+    else
+        GIT_DIRTY="no"
+    fi
+else
+    warn "读不到 git 信息（$PROJECT_DIR 不是 git 仓库），镜像将无法溯源"
+fi
+
+IMG="$OUT_DIR/${BOARD_NAME}-${KVER}-${DATE}-g${GIT_SHORT}.img"
 
 # 确保 DTB 不比项目里的 DTS 旧。
 # 只改设备树、不重编内核是很常见的情况（增量构建的盲区），
@@ -110,6 +130,19 @@ cat > "$ROOT_STAGE/etc/fstab" <<EOF
 # <file system>  <mount point>  <type>  <options>                                <dump> <pass>
 /dev/mmcblk0p1   /boot          vfat    defaults,noatime,nofail,x-systemd.device-timeout=10   0      2
 /dev/mmcblk0p2   /              ext4    defaults,noatime                     0      1
+EOF
+
+# 构建溯源文件：板上直接 cat /etc/wukongpi-release 就能看到这版镜像的来源
+cat > "$ROOT_STAGE/etc/wukongpi-release" <<EOF
+# 悟空派 H3 Zero —— 构建来源
+# 判断这版镜像是否包含某个提交：
+#   git merge-base --is-ancestor <提交> ${GIT_COMMIT}
+BOARD=${BOARD_NAME}
+KERNEL_RELEASE=${KVER}
+IMAGE_COMMIT=${GIT_COMMIT}
+IMAGE_COMMIT_SHORT=${GIT_SHORT}
+IMAGE_DIRTY=${GIT_DIRTY}
+IMAGE_BUILD_TIME=$(date -u '+%Y-%m-%d %H:%M:%S UTC')
 EOF
 
 truncate -s $(( ROOT_SIZE_MB * 1024 * 1024 )) "$ROOT_IMG"

@@ -94,9 +94,9 @@ docker 镜像 → 下载源码 → 编译 U-Boot → 编译内核 → 编译 WiF
 
 ```
 out/
-├── wukongpi-h3-6.18.56-YYYYMMDD.img        # 可直接烧录的镜像（2GB）
-├── wukongpi-h3-6.18.56-YYYYMMDD.img.xz     # 压缩版（约 70MB）
-├── wukongpi-h3-6.18.56-YYYYMMDD.img.bmap   # bmaptool 用的块映射
+├── wukongpi-h3-6.18.56-YYYYMMDD-gXXXXXXX.img       # 可直接烧录的镜像（2GB）
+├── wukongpi-h3-6.18.56-YYYYMMDD-gXXXXXXX.img.xz    # 压缩版（约 70MB）
+├── wukongpi-h3-6.18.56-YYYYMMDD-gXXXXXXX.img.bmap  # bmaptool 用的块映射
 ├── uboot/
 │   ├── u-boot-sunxi-with-spl.bin           # 含 SPL，写入偏移 8KiB
 │   ├── u-boot.bin
@@ -387,6 +387,7 @@ make kernel        # 只编内核
 make xradio        # 只编 WiFi 驱动
 make rootfs        # 只做 rootfs
 make sd-image      # 只组装镜像
+make verify-image  # 检查 out/ 最新镜像是否包含当前 HEAD 的全部提交
 make patches       # 生成可直接提交上游的补丁，写进 ./patches
 make base          # 准备 rootfs 用的 armhf 基础镜像
 make shell         # 进容器（源码在 /build/sources）
@@ -416,6 +417,28 @@ ROOTFS_RELEASE=bookworm make rootfs
 LINUX_MIRROR=https://mirrors.aliyun.com/linux-kernel make fetch
 APT_MIRROR=mirrors.tuna.tsinghua.edu.cn make docker
 ```
+
+### 6.1 判断「镜像里是哪一版代码」
+
+镜像文件名里带提交号，系统里也留了一份：
+
+```bash
+make verify-image            # 一条命令回答「最新镜像包含全部修改吗」
+cat /etc/wukongpi-release    # 在板子上直接看这版镜像的来源
+```
+
+`make verify-image` 读镜像文件名里的 `-g<提交号>` 与 `HEAD` 比对，并区分
+**「缺的提交会不会改变镜像内容」** —— 只改了 README / `scripts/host/` 的提交
+会明确告诉你不必重构建。不解包，也不需要 Docker。
+
+退出码：`0` 已是最新（或只差文档）；`1` 需要 `make image`；`2` 无法判定。
+
+**为什么不能用文件时间戳判断**：`git rebase` 会先 checkout 到上游提交、再逐个
+重放，过程中所有文件都被重写一遍，mtime 全部变成「构建之后」——
+于是镜像看起来比所有源码都旧，用它做判断必然误判。
+
+工作区不干净时文件名会带 `-dirty`：脏工作区不对应任何提交，
+`make verify-image` 会直说这种情况无法用提交号判断。
 
 ---
 
